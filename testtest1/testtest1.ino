@@ -22,11 +22,14 @@ const int left_pwm_pin = 40;
 const int right_nslp_pin = 31;
 const int right_dir_pin = 30;
 const int right_pwm_pin = 39;
+
 uint16_t sensorValues[8];
 
 // Motor Speed
 int left_spd;
 int right_spd;
+int mid_loc = 4;
+int mx_spd = 40;
 
 // Encoder Variables
 long enc_bin_cnt;
@@ -43,6 +46,39 @@ char new_duty_cycle[4];
 // // Prototypes
 // int get_spd(int prev_spd);
 
+int abso(int x) {return (x<0?(-x):x);}
+
+void assign_wheels() {
+  if (left_spd<0) {digitalWrite(left_dir_pin,HIGH);}
+  else {digitalWrite(left_dir_pin,LOW);}
+  if (right_spd<0) {digitalWrite(right_dir_pin,HIGH);}
+  else {digitalWrite(right_dir_pin,LOW);}
+  analogWrite(left_pwm_pin, abso(left_spd));
+  analogWrite(right_pwm_pin, abso(right_spd));
+}
+
+void inc_spd(bool right, bool inc) {
+  if ((right&&inc)||((!right)&&(!inc))) {
+    if (abso(right_spd)<mx_spd) {right_spd++;}
+    else if (abso(left_spd)<mx_spd) {left_spd--;}
+  }
+  if ((right&&(!inc))||((!right)&&inc)) {
+    if (abso(left_spd)<mx_spd) {left_spd++;}
+    else if (abso(right_spd)<mx_spd) {right_spd--;}
+  }
+}
+
+void set_new_wheel_spd() {
+  int max_sensor_location = 0;
+  int max_sensor_value = 0;
+  for (int i = 0; i < 8; i++) {
+    if (sensorValues[i]>max_sensor_value) {max_sensor_value=sensorValues[i]; max_sensor_location=i;}
+  }
+  if (max_sensor_location<mid_loc) {inc_spd(true,true);}
+  if (max_sensor_location>mid_loc) {inc_spd(false,true);}
+  Serial.print(left_spd); Serial.print(" "); Serial.print(right_spd); Serial.println();
+}
+
 ///////////////////////////////////
 void setup() {
 // This function runs once
@@ -56,45 +92,47 @@ void setup() {
   digitalWrite(left_dir_pin,LOW);
   digitalWrite(left_nslp_pin,HIGH);
 
-  left_spd = 0;
-  
+  left_spd = 20;
+  right_spd = 20;
   ECE3_Init(); // Used for encoder functionality
 
   Serial.begin(9600); // data rate for serial data transmission
   
   delay(2000); //Wait 2 seconds before starting 
+
+  analogWrite(left_pwm_pin, left_spd);
+  analogWrite(right_pwm_pin, right_spd);
 }
 
 void loop() {
   // Get the new speed from Serial input
   ECE3_read_IR(sensorValues);
-
+  set_new_wheel_spd();
   // print the sensor values as numbers from 0 to 2500, where 0 means maximum reflectance and
   // 2500 means minimum reflectance
-  for (unsigned char i = 0; i < 8; i++)
-  {
-    Serial.print(sensorValues[i]);
-    Serial.print('\t'); // tab to format the raw data into columns in the Serial monitor
-  }
-  Serial.println();
+  // for (unsigned char i = 0; i < 8; i++)
+  // {
+  //   Serial.print(sensorValues[i]);
+  //   Serial.print('\t'); // tab to format the raw data into columns in the Serial monitor
+  // }
+  // Serial.println();
 
-  delay(50);
-  left_spd = get_spd(left_spd);
+  // delay(500);
+  // left_spd = get_spd(left_spd);
 
   // Set the new speed
-  analogWrite(left_pwm_pin, left_spd);
-  delay(500);
+  // delay(20);
 
   // Reset the encoder and count how many ticks
   // occur in enc_bin_len milliseconds.
-  resetEncoderCount_left();
-  delay(enc_bin_len);
-  enc_bin_cnt = getEncoderCount_left();
+  // resetEncoderCount_left();
+  // delay(enc_bin_len);
+  // enc_bin_cnt = getEncoderCount_left();
 
   // Report encoder counts and speed
-  Serial.print("Encoder ticks: "); Serial.print(enc_bin_cnt);
-  Serial.print(" @ left_spd: "); Serial.print(left_spd);
-  Serial.print("\n");
+  // Serial.print("Encoder ticks: "); Serial.print(enc_bin_cnt);
+  // Serial.print(" @ left_spd: "); Serial.print(left_spd);
+  // Serial.print("\n");
 }
 
 // int get_spd(int prev_spd) {
