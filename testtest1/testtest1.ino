@@ -17,12 +17,16 @@
 
 // Pin Assignments
 const int left_nslp_pin = 31;
-const int left_dir_pin  = 29;
-const int left_pwm_pin  = 40;
+const int left_dir_pin = 29;
+const int left_pwm_pin = 40;
+const int right_nslp_pin = 31;
+const int right_dir_pin = 30;
+const int right_pwm_pin = 39;
 uint16_t sensorValues[8];
 
 // Motor Speed
 int left_spd;
+int right_spd;
 
 // Encoder Variables
 long enc_bin_cnt;
@@ -36,8 +40,8 @@ const unsigned long enc_bin_len = 50; // 50 ms bins
 // Serial Communication
 char new_duty_cycle[4];
 
-// Prototypes
-int get_spd(int prev_spd);
+// // Prototypes
+// int get_spd(int prev_spd);
 
 ///////////////////////////////////
 void setup() {
@@ -93,42 +97,42 @@ void loop() {
   Serial.print("\n");
 }
 
-int get_spd(int prev_spd) {
+// int get_spd(int prev_spd) {
 
-  int bytes_avail = Serial.available();
-  if(bytes_avail == 0) // no new serial inputs
-    return prev_spd;
+//   int bytes_avail = Serial.available();
+//   if(bytes_avail == 0) // no new serial inputs
+//     return prev_spd;
     
-  else if (bytes_avail > 4) { // invalid serial input
+//   else if (bytes_avail > 4) { // invalid serial input
     
-    do { // eat invalid buffered input
-      delay(100);
-      Serial.read();
-    } while(Serial.available() > 0);  
-    Serial.println("INVALID"); 
-    //Serial.println(bytes_avail);  
-    return prev_spd;
-  }
+//     do { // eat invalid buffered input
+//       delay(100);
+//       Serial.read();
+//     } while(Serial.available() > 0);  
+//     Serial.println("INVALID"); 
+//     //Serial.println(bytes_avail);  x
+//     return prev_spd;
+//   }
   
-  else {
-    for (int i = 0; i < bytes_avail; i++) // read out buffer
-      new_duty_cycle[i] = Serial.read();
-    int sum = 0;
-    for (int i = 0; i < bytes_avail; i++) { // calculate new speed
+//   else {
+//     for (int i = 0; i < bytes_avail; i++) // read out buffer
+//       new_duty_cycle[i] = Serial.read();
+//     int sum = 0;
+//     for (int i = 0; i < bytes_avail; i++) { // calculate new speed
       
-      int num = new_duty_cycle[i] - '0';
-      if (num == -38)
-        break;
-      else if (num > 9 || num < 0) { // invalid character
-        Serial.println("INVALID"); 
-        return prev_spd;
-      }
-      sum += pow(10, bytes_avail - 2 - i) * num;
-    }
+//       int num = new_duty_cycle[i] - '0';
+//       if (num == -38)
+//         break;
+//       else if (num > 9 || num < 0) { // invalid character
+//         Serial.println("INVALID"); 
+//         return prev_spd;
+//       }
+//       sum += pow(10, bytes_avail - 2 - i) * num;
+//     }
 
-    if (sum >= 255)
-      return 255;
-    else
-      return sum;
-  }
-}
+//     if (sum >= 255)
+//       return 255;
+//     else
+//       return sum;
+//   }
+// }
