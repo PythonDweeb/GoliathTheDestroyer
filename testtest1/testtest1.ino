@@ -92,6 +92,14 @@ void setup() {
   digitalWrite(left_dir_pin,LOW);
   digitalWrite(left_nslp_pin,HIGH);
 
+
+  pinMode(right_nslp_pin,OUTPUT);
+  pinMode(right_dir_pin,OUTPUT);
+  pinMode(right_pwm_pin,OUTPUT);
+
+  // Setting Initial Values
+  digitalWrite(right_dir_pin,LOW);
+  digitalWrite(right_nslp_pin,HIGH);
   left_spd = 20;
   right_spd = 20;
   ECE3_Init(); // Used for encoder functionality
@@ -108,6 +116,7 @@ void loop() {
   // Get the new speed from Serial input
   ECE3_read_IR(sensorValues);
   set_new_wheel_spd();
+  assign_wheels();
   // print the sensor values as numbers from 0 to 2500, where 0 means maximum reflectance and
   // 2500 means minimum reflectance
   // for (unsigned char i = 0; i < 8; i++)
