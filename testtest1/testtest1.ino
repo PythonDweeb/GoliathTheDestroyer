@@ -76,7 +76,12 @@ void set_new_wheel_spd() {
   }
   if (max_sensor_location<mid_loc) {inc_spd(true,true);}
   if (max_sensor_location>mid_loc) {inc_spd(false,true);}
-  Serial.print(left_spd); Serial.print(" "); Serial.print(right_spd); Serial.println();
+
+  int correction = 5.0 * (max_sensor_location - 3.5);
+  left_spd = constrain(25 + correction, -mx_spd, mx_spd);
+  right_spd = constrain(25 - correction, -mx_spd, mx_spd);
+
+  // Serial.print(left_spd); Serial.print(" "); Serial.print(right_spd); Serial.println();
 }
 
 ///////////////////////////////////
@@ -105,7 +110,7 @@ void setup() {
   ECE3_Init(); // Used for encoder functionality
 
   Serial.begin(9600); // data rate for serial data transmission
-  
+
   delay(2000); //Wait 2 seconds before starting 
 
   analogWrite(left_pwm_pin, left_spd);
@@ -149,9 +154,9 @@ void loop() {
 //   int bytes_avail = Serial.available();
 //   if(bytes_avail == 0) // no new serial inputs
 //     return prev_spd;
-    
+
 //   else if (bytes_avail > 4) { // invalid serial input
-    
+
 //     do { // eat invalid buffered input
 //       delay(100);
 //       Serial.read();
@@ -160,13 +165,13 @@ void loop() {
 //     //Serial.println(bytes_avail);  x
 //     return prev_spd;
 //   }
-  
+
 //   else {
 //     for (int i = 0; i < bytes_avail; i++) // read out buffer
 //       new_duty_cycle[i] = Serial.read();
 //     int sum = 0;
 //     for (int i = 0; i < bytes_avail; i++) { // calculate new speed
-      
+
 //       int num = new_duty_cycle[i] - '0';
 //       if (num == -38)
 //         break;
