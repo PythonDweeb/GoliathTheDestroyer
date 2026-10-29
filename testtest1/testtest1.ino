@@ -78,8 +78,8 @@ void set_new_wheel_spd() {
   if (max_sensor_location>mid_loc) {inc_spd(false,true);}
 
   int correction = 5.0 * (max_sensor_location - 3.5);
-  left_spd = constrain(25 + correction, -mx_spd, mx_spd);
-  right_spd = constrain(25 - correction, -mx_spd, mx_spd);
+  left_spd = constrain(25 - correction, -mx_spd, mx_spd);
+  right_spd = constrain(25 + correction, -mx_spd, mx_spd);
 
   // Serial.print(left_spd); Serial.print(" "); Serial.print(right_spd); Serial.println();
 }
