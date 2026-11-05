@@ -172,9 +172,9 @@ void set_new_wheel_spd() {
   if (error > 0.2) last_direction = 1;
   if (error < -0.2) last_direction = -1;
 
-  const float Kp = 18.0;
+  const float Kp = 90.0;
   const float Ksharp = 15.0;
-  const float Kd = 12.0;
+  const float Kd = 18.0;
 
   // Damping
   float derivative = error - prev_error;
