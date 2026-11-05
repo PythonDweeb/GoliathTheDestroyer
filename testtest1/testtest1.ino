@@ -19,7 +19,7 @@
 const int left_nslp_pin = 31;
 const int left_dir_pin = 29;
 const int left_pwm_pin = 40;
-const int right_nslp_pin = 31;
+const int right_nslp_pin = 11;
 const int right_dir_pin = 30;
 const int right_pwm_pin = 39;
 
@@ -29,7 +29,7 @@ uint16_t sensorValues[8];
 int left_spd;
 int right_spd;
 int mid_loc = 4;
-int mx_spd = 40;
+int mx_spd = 254;
 
 // Encoder Variables
 long enc_bin_cnt;
@@ -68,20 +68,141 @@ void inc_spd(bool right, bool inc) {
   }
 }
 
+// void set_new_wheel_spd() {
+//   int max_sensor_location = 0;
+//   int max_sensor_value = 0;
+//   for (int i = 0; i < 8; i++) {
+//     if (sensorValues[i]>max_sensor_value) {max_sensor_value=sensorValues[i]; max_sensor_location=i;}
+//   }
+//   if (max_sensor_location<mid_loc) {inc_spd(true,true);}
+//   if (max_sensor_location>mid_loc) {inc_spd(false,true);}
+
+//   int correction = 5.0 * (max_sensor_location - 3.5);
+//   left_spd = constrain(25 - correction, -mx_spd, mx_spd);
+//   right_spd = constrain(25 + correction, -mx_spd, mx_spd);
+
+//   // Serial.print(left_spd); Serial.print(" "); Serial.print(right_spd); Serial.println();
+// }
+
+//OLD SET NEW WHEEL SPD
+
+// void set_new_wheel_spd() {
+//   int min_sensor_value = sensorValues[0];
+
+//   for (int i = 1; i < 8; i++) {
+//     min_sensor_value = min(min_sensor_value, (int)sensorValues[i]);
+//   }
+
+//   long weighted_sum = 0;
+//   long total = 0;
+
+//   for (int i = 0; i < 8; i++) {
+//     int value = sensorValues[i] - min_sensor_value;
+//     weighted_sum += (long)value * i;
+//     total += value;
+//   }
+
+//   if (total == 0) {
+//     left_spd = 0;
+//     right_spd = 0;
+//     return;
+//   }
+
+//   float position = (float)weighted_sum / total;
+//   float error = position - 3.5;
+
+//   const int base_spd = 90;
+//   const float Kp = 80.0;
+
+//   float correction = Kp * error;
+
+//   left_spd = constrain((int)(base_spd - correction), -mx_spd, mx_spd);
+//   right_spd = constrain((int)(base_spd + correction), -mx_spd, mx_spd);
+// }
+
 void set_new_wheel_spd() {
-  int max_sensor_location = 0;
-  int max_sensor_value = 0;
-  for (int i = 0; i < 8; i++) {
-    if (sensorValues[i]>max_sensor_value) {max_sensor_value=sensorValues[i]; max_sensor_location=i;}
+  static float prev_error = 0;
+  static float filtered_derivative = 0;
+  static int last_direction = 1;
+
+  int min_sensor_value = sensorValues[0];
+  int max_sensor_value = sensorValues[0];
+
+  for (int i = 1; i < 8; i++) {
+    min_sensor_value = min(min_sensor_value, (int)sensorValues[i]);
+    max_sensor_value = max(max_sensor_value, (int)sensorValues[i]);
   }
-  if (max_sensor_location<mid_loc) {inc_spd(true,true);}
-  if (max_sensor_location>mid_loc) {inc_spd(false,true);}
 
-  int correction = 5.0 * (max_sensor_location - 3.5);
-  left_spd = constrain(25 - correction, -mx_spd, mx_spd);
-  right_spd = constrain(25 + correction, -mx_spd, mx_spd);
+  // Line lost or uniform sensor readings
+  if (max_sensor_value - min_sensor_value < 250) {
+    if (max_sensor_value > 1500) {
+      // Likely all-black region or intersection
+      left_spd = 55;
+      right_spd = 55;
+    } else {
+      // Search toward the last known line position
+      left_spd = -last_direction * 55;
+      right_spd = last_direction * 55;
+    }
 
-  // Serial.print(left_spd); Serial.print(" "); Serial.print(right_spd); Serial.println();
+    prev_error = 0;
+    filtered_derivative = 0;
+    return;
+  }
+
+  long weighted_sum = 0;
+  long total = 0;
+
+  for (int i = 0; i < 8; i++) {
+    int value = sensorValues[i] - min_sensor_value;
+
+    weighted_sum += (long)value * i;
+    total += value;
+  }
+
+  if (total == 0) {
+    left_spd = 0;
+    right_spd = 0;
+    return;
+  }
+
+  float position = (float)weighted_sum / total;
+  float error = position - 3.5;
+
+  if (error > 0.2) last_direction = 1;
+  if (error < -0.2) last_direction = -1;
+
+  const float Kp = 18.0;
+  const float Ksharp = 15.0;
+  const float Kd = 12.0;
+
+  // Damping
+  float derivative = error - prev_error;
+  filtered_derivative =
+      0.6 * filtered_derivative + 0.4 * derivative;
+
+  // Small correction on straights, large on sharp turns
+  float correction =
+      Kp * error +
+      Ksharp * error * abs(error) +
+      Kd * filtered_derivative;
+
+  correction = constrain(correction, -140.0, 140.0);
+
+  // Slow down on sharp turns
+  int base_spd = constrain(
+      (int)(75 - 10 * abs(error)), 45, 75
+  );
+
+  left_spd = constrain(
+      (int)(base_spd - correction), -mx_spd, mx_spd
+  );
+
+  right_spd = constrain(
+      (int)(base_spd + correction), -mx_spd, mx_spd
+  );
+
+  prev_error = error;
 }
 
 ///////////////////////////////////
