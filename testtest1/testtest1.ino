@@ -23,7 +23,7 @@ char new_duty_cycle[4];
 
 // U-turn settings (NEW)
 const int UTURN_PWM = 80;
-const unsigned long UTURN_MS = 600;
+const unsigned long UTURN_MS = 700;
 
 int abso(int x) {
   return (x < 0 ? -x : x);
