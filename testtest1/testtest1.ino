@@ -21,6 +21,10 @@ const unsigned long enc_bin_len = 50;
 
 char new_duty_cycle[4];
 
+// U-turn settings (NEW)
+const int UTURN_PWM = 80;
+const unsigned long UTURN_MS = 600;
+
 int abso(int x) {
   return (x < 0 ? -x : x);
 }
@@ -69,9 +73,32 @@ void set_new_wheel_spd() {
   static bool finished = false;
   static int black_count = 0;
 
+  // U-turn state (NEW)
+  static bool turning = false;
+  static bool returning = false;
+  static bool marker_armed = false;
+  static int clear_count = 0;
+  static unsigned long turn_start = 0;
+
   if (finished) {
     left_spd = 0;
     right_spd = 0;
+    return;
+  }
+
+  // Execute U-turn (NEW)
+  if (turning) {
+    if (millis() - turn_start < UTURN_MS) {
+      left_spd = UTURN_PWM;
+      right_spd = -UTURN_PWM;
+    } else {
+      turning = false;
+      returning = true;
+      prev_error = 0;
+      filtered_derivative = 0;
+      left_spd = 0;
+      right_spd = 0;
+    }
     return;
   }
 
@@ -83,14 +110,37 @@ void set_new_wheel_spd() {
     max_sensor_value = max(max_sensor_value, (int)sensorValues[i]);
   }
 
-  // Stop permanently if all 8 sensors see black
-  if (min_sensor_value > 1800) {
+  // Arm marker detection only after leaving a black marker (NEW)
+  if (min_sensor_value <= 1800) {
+    clear_count++;
+
+    if (clear_count >= 10) {
+      marker_armed = true;
+    }
+  } else {
+    clear_count = 0;
+  }
+
+  // First black marker: U-turn
+  // Second black marker: stop permanently (NEW)
+  if (min_sensor_value > 1800 && marker_armed) {
     black_count++;
 
     if (black_count >= 4) {
-      finished = true;
-      left_spd = 0;
-      right_spd = 0;
+      black_count = 0;
+      marker_armed = false;
+      clear_count = 0;
+
+      if (!returning) {
+        turning = true;
+        turn_start = millis();
+        left_spd = UTURN_PWM;
+        right_spd = -UTURN_PWM;
+      } else {
+        finished = true;
+        left_spd = 0;
+        right_spd = 0;
+      }
       return;
     }
   } else {
