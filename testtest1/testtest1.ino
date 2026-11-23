@@ -1,14 +1,14 @@
 #include <ECE3.h>
 
 // ========================================
-// VERSION 9
+// VERSION 10
 // ========================================
 //
 // Check this line is in the file you flash.
 // The first version had STRAIGHT_SPEED 112;
 // this one has 170.
 //
-// Search "FIX 1" ... "FIX 12" for each change.
+// Search "FIX 1" ... "FIX 13" for each change.
 //
 // MAIN KNOBS
 //
@@ -27,6 +27,11 @@
 //   ENTRY_BRAKE_BASE more negative
 // Flies off coming OUT of a turn:
 //   raise STRAIGHT_AFTER_SHARP_MS
+// Flies off at the end of a long straight
+// (T6, T5):
+//   lower STRAIGHT_BOOST_CM
+// Too little boost on the long straight:
+//   raise STRAIGHT_BOOST_CM
 // Slides past the black block:
 //   raise MARKER_BRAKE_PWM
 // Backs up at the black block:
@@ -152,7 +157,38 @@ const float STRAIGHT_ENTER_ERROR = 0.40f;
 
 // ...and this long must have passed since
 // the last sharp-turn reading.
-const unsigned long STRAIGHT_AFTER_SHARP_MS = 400;
+const unsigned long STRAIGHT_AFTER_SHARP_MS = 600;
+
+// ========================================
+// FIX 13: BOOST BY DISTANCE
+// ========================================
+//
+// The car cannot see a turn coming, and the
+// long straights on this track end in sharp
+// points (T5, T6, T16). So the boost is only
+// used for the FIRST part of a straight,
+// measured with the wheel encoders. After
+// that the car drops back to CRUISE_SPEED
+// and arrives at the turn at a speed it can
+// handle.
+//
+// The T5-T6 straight is about 100 cm.
+
+const float STRAIGHT_BOOST_CM = 45.0f;
+
+// 360 ticks per turn of a 7 cm wheel.
+const float TICKS_PER_CM = 16.4f;
+
+// On the way back, the first straight (from
+// the black block to T16) is short and ends
+// in a sharp point: no boost until the first
+// sharp turn has been passed.
+const unsigned long RETURN_SHARP_IGNORE_MS = 1000;
+
+bool boosting = false;
+bool was_straight = false;
+bool sharp_since_uturn = true;
+unsigned long boost_start_ticks = 0;
 const unsigned long STRAIGHT_GRACE_MS = 15;
 
 unsigned long last_stable = 0;
@@ -437,7 +473,7 @@ void update_diagnostic_LED() {
   if (state == FOLLOWING) {
     digitalWrite(
         LED_BUILTIN,
-        straight_mode ? HIGH : LOW
+        boosting ? HIGH : LOW
     );
 
     return;
@@ -527,6 +563,9 @@ void execute_uturn(unsigned long now) {
 
     rate_valid = false;
     slow_valid = false;
+
+    boosting = false;
+    sharp_since_uturn = false;
 
     // The car has been turning in place.
     lagged_base = 48;
@@ -875,6 +914,7 @@ void set_new_wheel_spd() {
   if (contrast < 250) {
     straight_mode = false;
     straight_since = 0;
+    boosting = false;
 
     unsigned long lost_dt =
         now - last_speed_step;
@@ -1097,6 +1137,14 @@ void set_new_wheel_spd() {
 
     seen_hard_corner = true;
     last_hard_corner = now;
+
+    // FIX 13: first real sharp turn on the
+    // way back.
+    if (returning &&
+        now - turn_end >
+        RETURN_SHARP_IGNORE_MS) {
+      sharp_since_uturn = true;
+    }
   }
   else if (bend_now) {
     track_mode = TRACK_BEND;
@@ -1237,6 +1285,37 @@ void set_new_wheel_spd() {
     straight_mode = false;
   }
 
+  // FIX 13: boost only for the first
+  // STRAIGHT_BOOST_CM of each straight.
+  if (!straight_mode) {
+    was_straight = false;
+    boosting = false;
+  }
+  else {
+    unsigned long enc_l, enc_r;
+    read_encoder_counts(enc_l, enc_r);
+
+    unsigned long enc_sum = enc_l + enc_r;
+
+    if (!was_straight) {
+      was_straight = true;
+      boost_start_ticks = enc_sum;
+    }
+
+    // Both wheels are added together, so
+    // the limit is doubled.
+    unsigned long boost_limit =
+        (unsigned long)(
+            2.0f * STRAIGHT_BOOST_CM *
+            TICKS_PER_CM
+        );
+
+    boosting =
+        sharp_since_uturn &&
+        enc_sum - boost_start_ticks <
+        boost_limit;
+  }
+
   // ======================================
   // DISCRETE SPEED CONTROL
   // ======================================
@@ -1251,7 +1330,10 @@ void set_new_wheel_spd() {
     // FIX 7: confirmed straight wins over a
     // momentary BEND, so one noisy reading
     // cannot knock the speed down.
-    target_base = STRAIGHT_SPEED;
+    // FIX 13: boost for the first part of
+    // the straight, cruise for the rest.
+    target_base =
+        boosting ? STRAIGHT_SPEED : CRUISE_SPEED;
   }
   else if (track_mode == TRACK_BEND) {
     target_base = BEND_SPEED;
